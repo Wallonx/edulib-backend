@@ -6,8 +6,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ⚠️ VOTRE CLÉ API GEMINI
-const GEMINI_API_KEY = "AIzaSyAzeTE8HBH6UJO-KplSYy_GOt0BtS4UrP8"; 
+// Récupère la clé depuis le fichier caché .env
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // --- ROUTE 1 : GÉNÉRATION DE QUIZ ---
 app.post('/generate-quiz', async (req, res) => {
@@ -15,27 +15,21 @@ app.post('/generate-quiz', async (req, res) => {
         const { downloadURL, title } = req.body;
         console.log(`\n1. 📝 Quiz : Traitement de ${title}`);
 
-        // 1. Téléchargement du PDF
         const response = await axios.get(downloadURL, { responseType: 'arraybuffer' });
         const base64Data = Buffer.from(response.data).toString('base64');
 
-        // 2. Prompt pour Gemini
         const promptText = `
         Tu es un professeur expert.
         Analyse le document PDF fourni (Titre: "${title}").
         Tâche : Crée un QCM de 5 questions basé STRICTEMENT sur le contenu.
         Format JSON uniquement : { "questions": [ { "question": "...", "options": ["A", "B", "C", "D"], "correct": 0, "explanation": "..." } ] }`;
 
-        // 3. Appel API Gemini 2.0 Flash
         const aiResponse = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
-            {
-                contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }]
-            },
+            { contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }] },
             { headers: { 'Content-Type': 'application/json' } }
         );
 
-        // 4. Nettoyage et réponse
         let rawAnswer = aiResponse.data.candidates[0].content.parts[0].text;
         rawAnswer = rawAnswer.replace(/```json/g, '').replace(/```/g, '').trim();
         const finalJson = JSON.parse(rawAnswer);
@@ -48,17 +42,15 @@ app.post('/generate-quiz', async (req, res) => {
     }
 });
 
-// --- ROUTE 2 : GÉNÉRATION DE FLASHCARDS (Indispensable pour que ça marche) ---
+// --- ROUTE 2 : GÉNÉRATION DE FLASHCARDS ---
 app.post('/generate-flashcards', async (req, res) => {
     try {
         const { downloadURL, title } = req.body;
         console.log(`\n2. ⚡ Flashcards : Traitement de ${title}`);
 
-        // 1. Téléchargement
         const response = await axios.get(downloadURL, { responseType: 'arraybuffer' });
         const base64Data = Buffer.from(response.data).toString('base64');
 
-        // 2. Prompt Spécial Flashcards (Format précis)
         const promptText = `
         Tu es un expert en pédagogie.
         Analyse ce document (Titre: "${title}").
@@ -68,24 +60,14 @@ app.post('/generate-flashcards', async (req, res) => {
         - "back": La réponse ou définition précise.
         
         IMPORTANT : Respecte la typographie française (espace avant ? et !).
-        
-        Format JSON attendu :
-        {
-          "flashcards": [
-            { "front": "Question ?", "back": "Réponse." }
-          ]
-        }`;
+        Format JSON attendu : { "flashcards": [ { "front": "Question ?", "back": "Réponse." } ] }`;
 
-        // 3. Appel Gemini
         const aiResponse = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
-            {
-                contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }]
-            },
+            { contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }] },
             { headers: { 'Content-Type': 'application/json' } }
         );
 
-        // 4. Nettoyage
         let rawAnswer = aiResponse.data.candidates[0].content.parts[0].text;
         rawAnswer = rawAnswer.replace(/```json/g, '').replace(/```/g, '').trim();
         const finalJson = JSON.parse(rawAnswer);
@@ -94,6 +76,59 @@ app.post('/generate-flashcards', async (req, res) => {
 
     } catch (error) {
         console.error("❌ ERREUR Flashcards :", error.message);
+        res.status(500).json({ error: "Erreur technique IA." });
+    }
+});
+
+// --- ROUTE 3 : GÉNÉRATION DE FICHE DE RÉVISION (STYLE BRISTOL) ---
+app.post('/generate-summary', async (req, res) => {
+    try {
+        const { downloadURL, title } = req.body;
+        console.log(`\n3. 📝 Fiche Révision : Traitement de ${title}`);
+
+        const response = await axios.get(downloadURL, { responseType: 'arraybuffer' });
+        const base64Data = Buffer.from(response.data).toString('base64');
+
+        const promptText = `
+        Tu es un étudiant brillant qui prépare ses examens.
+        Analyse ce document de cours (Titre: "${title}").
+        
+        Tâche : Rédige une "Fiche de révision" synthétique et ultra-claire.
+        Style : Prise de notes (bullet points, flèches, gras).
+        
+        Structure attendue (en Markdown) :
+        # 📑 Fiche : ${title}
+        
+        ## 🎯 L'essentiel en 3 phrases
+        [Résumé ultra-court]
+        
+        ## 🔑 Concepts Clés
+        - **[Concept 1]** : [Explication simple]
+        - **[Concept 2]** : [Explication simple]
+        
+        ## 🧠 À retenir par cœur
+        > [Définition ou formule importante]
+        
+        ## ⚠️ Astuces / Pièges
+        - [Conseil d'ami pour l'examen]
+
+        Format de sortie JSON : { "summary": "Le contenu en markdown ici..." }
+        `;
+
+        const aiResponse = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+            { contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }] },
+            { headers: { 'Content-Type': 'application/json' } }
+        );
+
+        let rawAnswer = aiResponse.data.candidates[0].content.parts[0].text;
+        rawAnswer = rawAnswer.replace(/```json/g, '').replace(/```/g, '').trim();
+        const finalJson = JSON.parse(rawAnswer);
+
+        res.json(finalJson);
+
+    } catch (error) {
+        console.error("❌ ERREUR Summary :", error.message);
         res.status(500).json({ error: "Erreur technique IA." });
     }
 });
