@@ -1,3 +1,4 @@
+require('dotenv').config(); // Charge le fichier .env
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -80,37 +81,54 @@ app.post('/generate-flashcards', async (req, res) => {
     }
 });
 
-// --- ROUTE 3 : GÉNÉRATION DE FICHE DE RÉVISION (STYLE BRISTOL) ---
+// --- ROUTE 3 : GÉNÉRATION DE FICHE DE RÉVISION (PROMPT AMÉLIORÉ) ---
 app.post('/generate-summary', async (req, res) => {
     try {
         const { downloadURL, title } = req.body;
-        console.log(`\n3. 📝 Fiche Révision : Traitement de ${title}`);
+        console.log(`\n3. 📝 Fiche Révision (Avancée) : Traitement de ${title}`);
 
         const response = await axios.get(downloadURL, { responseType: 'arraybuffer' });
         const base64Data = Buffer.from(response.data).toString('base64');
 
+        // 🔥 NOUVEAU PROMPT DETAILLÉ 🔥
         const promptText = `
-        Tu es un étudiant brillant qui prépare ses examens.
-        Analyse ce document de cours (Titre: "${title}").
-        
-        Tâche : Rédige une "Fiche de révision" synthétique et ultra-claire.
-        Style : Prise de notes (bullet points, flèches, gras).
-        
-        Structure attendue (en Markdown) :
+        Tu es un expert en synthèse pédagogique et "Sketchnoting". 
+        Ton objectif est de créer la fiche de révision PARFAITE pour un étudiant, basée sur le document fourni ("${title}").
+
+        CONSIGNES DE RÉDACTION :
+        1. **Synthèse intelligente** : Ne recopie pas le texte, reformule pour clarifier.
+        2. **Visuel** : Utilise des émojis pertinents pour chaque section.
+        3. **Mise en valeur** : Mets en **gras** les mots-clés importants.
+        4. **Structure** : Utilise strictement le format Markdown ci-dessous.
+
+        STRUCTURE ATTENDUE (Markdown) :
+
         # 📑 Fiche : ${title}
-        
-        ## 🎯 L'essentiel en 3 phrases
-        [Résumé ultra-court]
-        
-        ## 🔑 Concepts Clés
-        - **[Concept 1]** : [Explication simple]
-        - **[Concept 2]** : [Explication simple]
-        
-        ## 🧠 À retenir par cœur
-        > [Définition ou formule importante]
-        
-        ## ⚠️ Astuces / Pièges
-        - [Conseil d'ami pour l'examen]
+
+        ## 🎯 Objectif & Contexte
+        *En 2 phrases : De quoi parle ce cours et pourquoi c'est important ?*
+
+        ## 🔑 Concepts Fondamentaux (Le cœur du cours)
+        *Liste les 3 à 5 grands points à comprendre absolument.*
+        - **[Concept 1]** : Explication claire et concise.
+        - **[Concept 2]** : Explication claire et concise.
+        *(Utilise des sous-points si nécessaire)*
+
+        ## 📖 Vocabulaire & Définitions
+        *Les termes techniques précis.*
+        - **[Terme A]** : Définition.
+        - **[Terme B]** : Définition.
+
+        ## 🧠 À retenir par cœur (Dates / Formules / Chiffres)
+        > [Formule mathématique, Date historique ou Théorème clé]
+        > [Autre élément incontournable]
+
+        ## 💡 Exemple Concret / Application
+        *Un exemple simple pour illustrer la théorie (ex: "Imaginez que...").*
+
+        ## ⚠️ Les Pièges de l'examen
+        - [Erreur classique à ne pas faire]
+        - [Confusion fréquente à éviter]
 
         Format de sortie JSON : { "summary": "Le contenu en markdown ici..." }
         `;
@@ -122,8 +140,19 @@ app.post('/generate-summary', async (req, res) => {
         );
 
         let rawAnswer = aiResponse.data.candidates[0].content.parts[0].text;
+        
+        // Nettoyage agressif pour éviter les bugs JSON
         rawAnswer = rawAnswer.replace(/```json/g, '').replace(/```/g, '').trim();
-        const finalJson = JSON.parse(rawAnswer);
+        
+        // Parsing sécurisé
+        let finalJson;
+        try {
+            finalJson = JSON.parse(rawAnswer);
+        } catch (e) {
+            console.error("Erreur parsing JSON IA, tentative de correction...");
+            // Si l'IA renvoie du texte brut au lieu de JSON (rare mais possible)
+            finalJson = { summary: rawAnswer }; 
+        }
 
         res.json(finalJson);
 
