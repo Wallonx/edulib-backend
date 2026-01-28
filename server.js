@@ -25,8 +25,9 @@ app.post('/generate-quiz', async (req, res) => {
         Tâche : Crée un QCM de 5 questions basé STRICTEMENT sur le contenu.
         Format JSON uniquement : { "questions": [ { "question": "...", "options": ["A", "B", "C", "D"], "correct": 0, "explanation": "..." } ] }`;
 
+        // MODIFICATION ICI : Passage à gemini-2.5-flash
         const aiResponse = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             { contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }] },
             { headers: { 'Content-Type': 'application/json' } }
         );
@@ -63,8 +64,9 @@ app.post('/generate-flashcards', async (req, res) => {
         IMPORTANT : Respecte la typographie française (espace avant ? et !).
         Format JSON attendu : { "flashcards": [ { "front": "Question ?", "back": "Réponse." } ] }`;
 
+        // MODIFICATION ICI : Passage à gemini-2.5-flash
         const aiResponse = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             { contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }] },
             { headers: { 'Content-Type': 'application/json' } }
         );
@@ -133,8 +135,9 @@ app.post('/generate-summary', async (req, res) => {
         Format de sortie JSON : { "summary": "Le contenu en markdown ici..." }
         `;
 
+        // MODIFICATION ICI : Passage à gemini-2.5-flash
         const aiResponse = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             { contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }] },
             { headers: { 'Content-Type': 'application/json' } }
         );
