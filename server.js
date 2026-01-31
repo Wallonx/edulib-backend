@@ -1,4 +1,4 @@
-require('dotenv').config(); // Charge le fichier .env
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -7,10 +7,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Récupère la clé depuis le fichier caché .env
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// --- ROUTE 1 : GÉNÉRATION DE QUIZ ---
+// --- ROUTE 1 : QUIZ ---
 app.post('/generate-quiz', async (req, res) => {
     try {
         const { downloadURL, title } = req.body;
@@ -25,9 +24,9 @@ app.post('/generate-quiz', async (req, res) => {
         Tâche : Crée un QCM de 5 questions basé STRICTEMENT sur le contenu.
         Format JSON uniquement : { "questions": [ { "question": "...", "options": ["A", "B", "C", "D"], "correct": 0, "explanation": "..." } ] }`;
 
-        // MODIFICATION ICI : Passage à gemini-2.5-flash
+        // CORRECTION ICI : gemini-1.5-flash au lieu de 2.5
         const aiResponse = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             { contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }] },
             { headers: { 'Content-Type': 'application/json' } }
         );
@@ -39,12 +38,13 @@ app.post('/generate-quiz', async (req, res) => {
         res.json(finalJson);
 
     } catch (error) {
-        console.error("❌ ERREUR Quiz :", error.message);
+        // Log l'erreur exacte pour le debugging sur Render
+        console.error("❌ ERREUR Quiz :", error.response ? error.response.data : error.message);
         res.status(500).json({ error: "Erreur technique IA." });
     }
 });
 
-// --- ROUTE 2 : GÉNÉRATION DE FLASHCARDS ---
+// --- ROUTE 2 : FLASHCARDS ---
 app.post('/generate-flashcards', async (req, res) => {
     try {
         const { downloadURL, title } = req.body;
@@ -64,9 +64,9 @@ app.post('/generate-flashcards', async (req, res) => {
         IMPORTANT : Respecte la typographie française (espace avant ? et !).
         Format JSON attendu : { "flashcards": [ { "front": "Question ?", "back": "Réponse." } ] }`;
 
-        // MODIFICATION ICI : Passage à gemini-2.5-flash
+        // CORRECTION ICI : gemini-1.5-flash au lieu de 2.5
         const aiResponse = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             { contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }] },
             { headers: { 'Content-Type': 'application/json' } }
         );
@@ -78,12 +78,12 @@ app.post('/generate-flashcards', async (req, res) => {
         res.json(finalJson);
 
     } catch (error) {
-        console.error("❌ ERREUR Flashcards :", error.message);
+        console.error("❌ ERREUR Flashcards :", error.response ? error.response.data : error.message);
         res.status(500).json({ error: "Erreur technique IA." });
     }
 });
 
-// --- ROUTE 3 : GÉNÉRATION DE FICHE DE RÉVISION (PROMPT AMÉLIORÉ) ---
+// --- ROUTE 3 : FICHE RÉVISION ---
 app.post('/generate-summary', async (req, res) => {
     try {
         const { downloadURL, title } = req.body;
@@ -92,7 +92,6 @@ app.post('/generate-summary', async (req, res) => {
         const response = await axios.get(downloadURL, { responseType: 'arraybuffer' });
         const base64Data = Buffer.from(response.data).toString('base64');
 
-        // 🔥 NOUVEAU PROMPT DETAILLÉ 🔥
         const promptText = `
         Tu es un expert en synthèse pédagogique et "Sketchnoting". 
         Ton objectif est de créer la fiche de révision PARFAITE pour un étudiant, basée sur le document fourni ("${title}").
@@ -135,32 +134,29 @@ app.post('/generate-summary', async (req, res) => {
         Format de sortie JSON : { "summary": "Le contenu en markdown ici..." }
         `;
 
-        // MODIFICATION ICI : Passage à gemini-2.5-flash
+        // CORRECTION ICI : gemini-1.5-flash au lieu de 2.5
         const aiResponse = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             { contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }] },
             { headers: { 'Content-Type': 'application/json' } }
         );
 
         let rawAnswer = aiResponse.data.candidates[0].content.parts[0].text;
         
-        // Nettoyage agressif pour éviter les bugs JSON
         rawAnswer = rawAnswer.replace(/```json/g, '').replace(/```/g, '').trim();
         
-        // Parsing sécurisé
         let finalJson;
         try {
             finalJson = JSON.parse(rawAnswer);
         } catch (e) {
             console.error("Erreur parsing JSON IA, tentative de correction...");
-            // Si l'IA renvoie du texte brut au lieu de JSON (rare mais possible)
             finalJson = { summary: rawAnswer }; 
         }
 
         res.json(finalJson);
 
     } catch (error) {
-        console.error("❌ ERREUR Summary :", error.message);
+        console.error("❌ ERREUR Summary :", error.response ? error.response.data : error.message);
         res.status(500).json({ error: "Erreur technique IA." });
     }
 });
