@@ -29,14 +29,12 @@ app.post('/generate-quiz', async (req, res) => {
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             { 
                 contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }],
-                // Ajout de sécurité pour le Quiz aussi
                 generationConfig: { response_mime_type: "application/json" }
             },
             { headers: { 'Content-Type': 'application/json' } }
         );
 
         let rawAnswer = aiResponse.data.candidates[0].content.parts[0].text;
-        // Avec le mode JSON activé, le nettoyage est plus simple mais on garde la sécurité
         rawAnswer = rawAnswer.replace(/```json/g, '').replace(/```/g, '').trim();
         const finalJson = JSON.parse(rawAnswer);
         
@@ -72,7 +70,6 @@ app.post('/generate-flashcards', async (req, res) => {
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             { 
                 contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }],
-                // Ajout de sécurité pour les Flashcards
                 generationConfig: { response_mime_type: "application/json" }
             },
             { headers: { 'Content-Type': 'application/json' } }
@@ -141,19 +138,16 @@ app.post('/generate-summary', async (req, res) => {
         Format de sortie JSON : { "summary": "Le contenu en markdown ici..." }
         `;
 
-        // MODIFICATION ICI : On active le mode JSON strict
         const aiResponse = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             { 
                 contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }],
-                generationConfig: { response_mime_type: "application/json" } // <--- C'est la clé du correctif
+                generationConfig: { response_mime_type: "application/json" } 
             },
             { headers: { 'Content-Type': 'application/json' } }
         );
 
         let rawAnswer = aiResponse.data.candidates[0].content.parts[0].text;
-        
-        // Nettoyage basique (au cas où le modèle ajoute encore des balises markdown autour du JSON)
         rawAnswer = rawAnswer.replace(/```json/g, '').replace(/```/g, '').trim();
         
         const finalJson = JSON.parse(rawAnswer);
@@ -161,6 +155,65 @@ app.post('/generate-summary', async (req, res) => {
 
     } catch (error) {
         console.error("❌ ERREUR Summary :", error.response ? error.response.data : error.message);
+        res.status(500).json({ error: "Erreur technique IA." });
+    }
+});
+
+// --- ROUTE 4 : RÉSOLUTION D'EXERCICES (NOUVEAU) ---
+app.post('/solve-exercises', async (req, res) => {
+    try {
+        const { downloadURL, title } = req.body;
+        console.log(`\n4. 🧮 Solveur : Traitement de ${title}`);
+
+        const response = await axios.get(downloadURL, { responseType: 'arraybuffer' });
+        const base64Data = Buffer.from(response.data).toString('base64');
+
+        const promptText = `
+        Tu es un professeur particulier d'excellence (type prépa).
+        Analyse le document PDF fourni ("${title}").
+        
+        TACHE :
+        Identifie les exercices ou questions d'examen présents dans ce document et fournis une correction détaillée pas à pas.
+        
+        CONSIGNES :
+        1. Repère les exercices (ex: "Exercice 1", "Question 3").
+        2. Pour chaque exercice, donne la solution complète avec la méthodologie.
+        3. Si c'est un QCM, explique pourquoi la réponse est la bonne.
+        4. Si c'est une rédaction/dissertation, donne un plan détaillé et une introduction modèle.
+        5. Utilise le format Markdown pour une lecture claire (gras pour les résultats, italique pour les conseils).
+
+        STRUCTURE JSON ATTENDUE :
+        {
+            "solutions": [
+                {
+                    "title": "Exercice 1 : [Titre ou Sujet]",
+                    "content": "### Énoncé détecté\n[Bref résumé]...\n\n### 💡 Méthodologie\n[Comment aborder le problème]...\n\n### ✅ Résolution étape par étape\n1. Étape 1...\n2. Étape 2...\n\n### 🏁 Résultat Final\n**Réponse : X**"
+                },
+                {
+                    "title": "Exercice 2...",
+                    "content": "..."
+                }
+            ]
+        }
+        `;
+
+        const aiResponse = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+            { 
+                contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }],
+                generationConfig: { response_mime_type: "application/json" } 
+            },
+            { headers: { 'Content-Type': 'application/json' } }
+        );
+
+        let rawAnswer = aiResponse.data.candidates[0].content.parts[0].text;
+        rawAnswer = rawAnswer.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        const finalJson = JSON.parse(rawAnswer);
+        res.json(finalJson);
+
+    } catch (error) {
+        console.error("❌ ERREUR Solveur :", error.response ? error.response.data : error.message);
         res.status(500).json({ error: "Erreur technique IA." });
     }
 });
