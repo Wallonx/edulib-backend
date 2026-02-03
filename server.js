@@ -159,7 +159,7 @@ app.post('/generate-summary', async (req, res) => {
     }
 });
 
-// --- ROUTE 4 : RÉSOLUTION D'EXERCICES (NOUVEAU) ---
+// --- ROUTE 4 : RÉSOLUTION D'EXERCICES (MODIFIÉE POUR ÉVITER LATEX) ---
 app.post('/solve-exercises', async (req, res) => {
     try {
         const { downloadURL, title } = req.body;
@@ -173,25 +173,28 @@ app.post('/solve-exercises', async (req, res) => {
         Analyse le document PDF fourni ("${title}").
         
         TACHE :
-        Identifie les exercices ou questions d'examen présents dans ce document et fournis une correction détaillée pas à pas.
+        Identifie les exercices ou questions d'examen présents et fournis une correction détaillée pas à pas.
         
-        CONSIGNES :
+        IMPORTANT - FORMATAGE DES MATHÉMATIQUES :
+        1. **N'utilise PAS de LaTeX** (pas de signes $ ou $$). C'est illisible sur l'interface.
+        2. Écris les formules mathématiques en **texte brut clair** ou avec des symboles Unicode simples.
+           - Exemple : Au lieu de $x^2$, écris "x²".
+           - Exemple : Au lieu de $\\frac{a}{b}$, écris "a / b".
+           - Exemple : Au lieu de $\\rightarrow$, écris "->".
+        3. Pour les grosses équations complexes, utilise des **Blocs de Code** (triples guillemets) pour qu'elles soient bien alignées.
+
+        CONSIGNES PÉDAGOGIQUES :
         1. Repère les exercices (ex: "Exercice 1", "Question 3").
         2. Pour chaque exercice, donne la solution complète avec la méthodologie.
-        3. Si c'est un QCM, explique pourquoi la réponse est la bonne.
-        4. Si c'est une rédaction/dissertation, donne un plan détaillé et une introduction modèle.
-        5. Utilise le format Markdown pour une lecture claire (gras pour les résultats, italique pour les conseils).
+        3. Explique les étapes clairement en français.
+        4. Mets en **gras** les résultats finaux.
 
         STRUCTURE JSON ATTENDUE :
         {
             "solutions": [
                 {
                     "title": "Exercice 1 : [Titre ou Sujet]",
-                    "content": "### Énoncé détecté\n[Bref résumé]...\n\n### 💡 Méthodologie\n[Comment aborder le problème]...\n\n### ✅ Résolution étape par étape\n1. Étape 1...\n2. Étape 2...\n\n### 🏁 Résultat Final\n**Réponse : X**"
-                },
-                {
-                    "title": "Exercice 2...",
-                    "content": "..."
+                    "content": "### Énoncé détecté\n[Résumé]...\n\n### 💡 Méthodologie\n[Conseil]...\n\n### ✅ Résolution\n1. On commence par...\n2. Ensuite...\n\nCalcul : 2x + 4 = 0\nDonc x = -2\n\n### 🏁 Résultat Final\n**Réponse : -2**"
                 }
             ]
         }
