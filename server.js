@@ -159,7 +159,7 @@ app.post('/generate-summary', async (req, res) => {
     }
 });
 
-// --- ROUTE 4 : RÉSOLUTION D'EXERCICES (MODIFIÉE POUR ÉVITER LATEX) ---
+// --- ROUTE 4 : RÉSOLUTION D'EXERCICES ---
 app.post('/solve-exercises', async (req, res) => {
     try {
         const { downloadURL, title } = req.body;
@@ -217,6 +217,53 @@ app.post('/solve-exercises', async (req, res) => {
 
     } catch (error) {
         console.error("❌ ERREUR Solveur :", error.response ? error.response.data : error.message);
+        res.status(500).json({ error: "Erreur technique IA." });
+    }
+});
+
+// --- ROUTE 5 : CHATBOT IA DOCUMENTAIRE (NOUVEAU) ---
+app.post('/chat-document', async (req, res) => {
+    try {
+        const { downloadURL, title, userQuestion } = req.body;
+        console.log(`\n5. 💬 Chat : Question sur ${title}`);
+        console.log(`❓ Question : ${userQuestion}`);
+
+        // Téléchargement du PDF
+        const response = await axios.get(downloadURL, { responseType: 'arraybuffer' });
+        const base64Data = Buffer.from(response.data).toString('base64');
+
+        const promptText = `
+        Tu es un assistant pédagogique virtuel intelligent.
+        L'utilisateur te pose une question sur le document PDF fourni ("${title}").
+
+        QUESTION DE L'UTILISATEUR : "${userQuestion}"
+
+        CONSIGNES :
+        1. Réponds **uniquement** en te basant sur le contenu du document fourni.
+        2. Si la réponse ne se trouve pas dans le document, dis poliment que tu ne trouves pas l'information dans ce fichier spécifique.
+        3. Sois pédagogique, clair et précis.
+        4. Si nécessaire, cite des passages clés ou explique les concepts.
+        5. Utilise le format Markdown pour rendre la réponse lisible (gras, listes à puces).
+        
+        Ta réponse doit être directement le texte de la réponse (pas de JSON).
+        `;
+
+        const aiResponse = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+            { 
+                contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }]
+                // Note: Pas de response_mime_type JSON ici, on veut du texte libre
+            },
+            { headers: { 'Content-Type': 'application/json' } }
+        );
+
+        const answer = aiResponse.data.candidates[0].content.parts[0].text;
+        
+        // On renvoie un JSON simple contenant la réponse
+        res.json({ answer: answer });
+
+    } catch (error) {
+        console.error("❌ ERREUR Chat :", error.response ? error.response.data : error.message);
         res.status(500).json({ error: "Erreur technique IA." });
     }
 });
