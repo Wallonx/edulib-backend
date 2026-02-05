@@ -10,25 +10,56 @@ app.use(express.json());
 // Récupère la clé depuis le fichier caché .env
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// --- ROUTE 1 : GÉNÉRATION DE QUIZ ---
+// --- ROUTE 1 : GÉNÉRATION DE QUIZ (MODIFIÉE POUR GÉRER LES LIVRES SANS PDF) ---
 app.post('/generate-quiz', async (req, res) => {
     try {
-        const { downloadURL, title } = req.body;
-        console.log(`\n1. 📝 Quiz : Traitement de ${title}`);
+        // On récupère aussi le docType pour savoir si c'est un livre
+        const { downloadURL, title, docType } = req.body;
+        console.log(`\n1. 📝 Quiz : Traitement de ${title} (Type: ${docType || 'Autre'})`);
 
-        const response = await axios.get(downloadURL, { responseType: 'arraybuffer' });
-        const base64Data = Buffer.from(response.data).toString('base64');
+        let contentsPayload = [];
 
-        const promptText = `
-        Tu es un professeur expert.
-        Analyse le document PDF fourni (Titre: "${title}").
-        Tâche : Crée un QCM de 5 questions basé STRICTEMENT sur le contenu.
-        Format JSON uniquement : { "questions": [ { "question": "...", "options": ["A", "B", "C", "D"], "correct": 0, "explanation": "..." } ] }`;
+        // --- CAS 1 : C'EST UN LIVRE (Quiz Culture Littéraire - PAS DE PDF) ---
+        if (docType === 'livre') {
+            console.log("   👉 Mode LIVRE activé : Quiz basé sur la connaissance interne (pas de téléchargement PDF).");
 
+            const promptLivreQuiz = `
+            Tu es un professeur de littérature expert.
+            L'utilisateur veut tester ses connaissances sur l'œuvre : "${title}".
+            
+            Tâche : Crée un QCM de 5 questions pertinentes basées sur ta connaissance interne de ce livre (Intrigue, Personnages, Thèmes majeurs).
+            Ne cherche pas à lire de fichier.
+            
+            Format JSON uniquement : { "questions": [ { "question": "...", "options": ["A", "B", "C", "D"], "correct": 0, "explanation": "..." } ] }
+            Important : L'index 'correct' doit être 0, 1, 2 ou 3 correspondant à la bonne réponse dans le tableau options.
+            `;
+
+            // On envoie uniquement le texte
+            contentsPayload = [{ parts: [{ text: promptLivreQuiz }] }];
+
+        } 
+        // --- CAS 2 : C'EST UN COURS OU AUTRE (Quiz Analyse de document - AVEC PDF) ---
+        else {
+            console.log("   👉 Mode DOCUMENT activé : Téléchargement et analyse du PDF.");
+            
+            const response = await axios.get(downloadURL, { responseType: 'arraybuffer' });
+            const base64Data = Buffer.from(response.data).toString('base64');
+
+            const promptText = `
+            Tu es un professeur expert.
+            Analyse le document PDF fourni (Titre: "${title}").
+            Tâche : Crée un QCM de 5 questions basé STRICTEMENT sur le contenu.
+            Format JSON uniquement : { "questions": [ { "question": "...", "options": ["A", "B", "C", "D"], "correct": 0, "explanation": "..." } ] }`;
+
+            // On envoie texte + PDF
+            contentsPayload = [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }];
+        }
+
+        // Appel API Gemini (Commun aux deux cas)
         const aiResponse = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             { 
-                contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }],
+                contents: contentsPayload,
                 generationConfig: { response_mime_type: "application/json" }
             },
             { headers: { 'Content-Type': 'application/json' } }
