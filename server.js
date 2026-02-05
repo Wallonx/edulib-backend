@@ -87,16 +87,20 @@ app.post('/generate-flashcards', async (req, res) => {
     }
 });
 
-// --- ROUTE 3 : GÉNÉRATION DE FICHE DE RÉVISION ---
+// --- ROUTE 3 : GÉNÉRATION DE FICHE DE RÉVISION OU RÉSUMÉ DE LIVRE ---
 app.post('/generate-summary', async (req, res) => {
     try {
-        const { downloadURL, title } = req.body;
-        console.log(`\n3. 📝 Fiche Révision (Avancée) : Traitement de ${title}`);
+        // On récupère aussi le docType pour savoir quel prompt utiliser
+        const { downloadURL, title, docType } = req.body;
+        console.log(`\n3. 📝 Synthèse (${docType || 'cours'}) : Traitement de ${title}`);
 
         const response = await axios.get(downloadURL, { responseType: 'arraybuffer' });
         const base64Data = Buffer.from(response.data).toString('base64');
 
-        const promptText = `
+        // --- DÉFINITION DES PROMPTS ---
+        
+        // 1. Prompt pour les COURS (Existant)
+        const promptCours = `
         Tu es un expert en synthèse pédagogique et "Sketchnoting". 
         Ton objectif est de créer la fiche de révision PARFAITE pour un étudiant, basée sur le document fourni ("${title}").
 
@@ -134,14 +138,62 @@ app.post('/generate-summary', async (req, res) => {
         ## ⚠️ Les Pièges de l'examen
         - [Erreur classique à ne pas faire]
         - [Confusion fréquente à éviter]
-
-        Format de sortie JSON : { "summary": "Le contenu en markdown ici..." }
         `;
+
+        // 2. Prompt pour les LIVRES (Nouveau)
+        const promptLivre = `
+        Tu es un critique littéraire et bibliothécaire expert.
+        Ton objectif est de créer une **Fiche de Lecture Complète** pour le livre fourni ("${title}").
+
+        CONSIGNES DE RÉDACTION :
+        1. Adopte un ton analytique mais accessible.
+        2. Utilise des émojis pour structurer la lecture.
+        3. Fais ressortir l'essentiel pour quelqu'un qui veut comprendre l'œuvre sans la lire.
+        4. Utilise strictement le format Markdown ci-dessous.
+
+        STRUCTURE ATTENDUE (Markdown) :
+
+        # 📚 Fiche de Lecture : ${title}
+
+        ## 📝 Informations Clés
+        - **Auteur** : (Déduis-le du document si possible)
+        - **Genre** : (Roman, Essai, Théâtre, etc.)
+        - **Thème central** : En une phrase.
+
+        ## 📖 Résumé Global (Le Pitch)
+        *Un paragraphe résumant l'intrigue générale ou l'argument principal du livre.*
+
+        ## 🔍 Résumé Détaillé (Les moments clés)
+        *Les points de bascule de l'histoire ou les chapitres clés.*
+        - **Situation Initiale** : ...
+        - **Élément Perturbateur** : ...
+        - **Péripéties / Développement** : ...
+        - **Dénouement / Conclusion** : ...
+
+        ## 👥 Personnages Principaux (ou Concepts clés si essai)
+        - **[Nom]** : Son rôle, sa psychologie, son évolution.
+        - **[Nom]** : Son rôle, sa psychologie, son évolution.
+
+        ## 🗝️ Thèmes & Analyse
+        *Quels sont les messages cachés ou les sujets profonds abordés ?*
+        - **[Thème 1]** : Analyse.
+        - **[Thème 2]** : Analyse.
+
+        ## 💬 Citation Marquante
+        > "Une citation extraite du texte qui capture l'essence du livre."
+
+        ## 🌟 Avis Critique & Portée
+        *Pourquoi ce livre est-il important ? Que faut-il en retenir pour la culture générale ?*
+        `;
+
+        // SÉLECTION DU PROMPT SELON LE TYPE
+        const promptText = (docType === 'livre') ? promptLivre : promptCours;
+        const finalPrompt = `${promptText}\nFormat de sortie JSON : { "summary": "Le contenu en markdown ici..." }`;
 
         const aiResponse = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             { 
-                contents: [{ parts: [{ text: promptText }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }],
+                contents: [{ parts: [{ text: finalPrompt }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }],
                 generationConfig: { response_mime_type: "application/json" } 
             },
             { headers: { 'Content-Type': 'application/json' } }
