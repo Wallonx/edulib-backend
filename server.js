@@ -87,113 +87,125 @@ app.post('/generate-flashcards', async (req, res) => {
     }
 });
 
-// --- ROUTE 3 : GÉNÉRATION DE FICHE DE RÉVISION OU RÉSUMÉ DE LIVRE ---
+// --- ROUTE 3 : GÉNÉRATION DE FICHE DE RÉVISION (COURS) OU ANALYSE LITTÉRAIRE (LIVRE) ---
 app.post('/generate-summary', async (req, res) => {
     try {
-        // On récupère aussi le docType pour savoir quel prompt utiliser
         const { downloadURL, title, docType } = req.body;
         console.log(`\n3. 📝 Synthèse (${docType || 'cours'}) : Traitement de ${title}`);
 
-        const response = await axios.get(downloadURL, { responseType: 'arraybuffer' });
-        const base64Data = Buffer.from(response.data).toString('base64');
+        let contentsPayload = [];
 
-        // --- DÉFINITION DES PROMPTS ---
-        
-        // 1. Prompt pour les COURS (Existant)
-        const promptCours = `
-        Tu es un expert en synthèse pédagogique et "Sketchnoting". 
-        Ton objectif est de créer la fiche de révision PARFAITE pour un étudiant, basée sur le document fourni ("${title}").
+        // --- CAS 1 : C'EST UN LIVRE (On utilise la culture de l'IA, PAS de lecture PDF) ---
+        if (docType === 'livre') {
+            console.log("   👉 Mode LIVRE activé : Analyse basée sur la connaissance interne (pas de téléchargement PDF).");
+            
+            const promptLivreExpert = `
+            Tu es un éminent Professeur de Littérature Française et critique littéraire aguerri.
+            
+            Ton objectif est de rédiger une **Fiche de Lecture et d'Analyse Approfondie** de l'œuvre intitulée : "${title}".
+            
+            CONSIGNES IMPORTANTES :
+            1. Ne cherche pas à lire un fichier joint. Utilise ton immense culture littéraire et ta base de données interne pour analyser cette œuvre intégrale.
+            2. Adopte un ton académique mais pédagogique, digne d'une préparation au Bac de Français ou à l'Agrégation.
+            3. Ne fais pas un simple résumé de 4e de couverture. Va en profondeur : analyse les enjeux, le style, la portée philosophique.
+            4. Structure ta réponse STRICTEMENT selon le format Markdown ci-dessous.
 
-        CONSIGNES DE RÉDACTION :
-        1. **Synthèse intelligente** : Ne recopie pas le texte, reformule pour clarifier.
-        2. **Visuel** : Utilise des émojis pertinents pour chaque section.
-        3. **Mise en valeur** : Mets en **gras** les mots-clés importants.
-        4. **Structure** : Utilise strictement le format Markdown ci-dessous.
+            STRUCTURE ATTENDUE (Markdown) :
 
-        STRUCTURE ATTENDUE (Markdown) :
+            # 📚 Analyse Littéraire : ${title}
 
-        # 📑 Fiche : ${title}
+            ## ✒️ Présentation de l'Œuvre
+            - **Auteur & Contexte** : Qui est l'auteur ? Dans quel mouvement littéraire s'inscrit-il ? Quel est le contexte historique de l'écriture ?
+            - **Genre & Registre** : (Roman, Théâtre, Poésie...) et les tonalités dominantes (Pathétique, Satirique, etc.).
 
-        ## 🎯 Objectif & Contexte
-        *En 2 phrases : De quoi parle ce cours et pourquoi c'est important ?*
+            ## 📖 Résumé Détaillé de l'Intrigue
+            *Rédige un résumé solide qui couvre le début, les péripéties centrales et le dénouement (la fin).*
+            > Ne t'arrête pas au suspense, l'étudiant doit connaître la fin pour analyser l'œuvre.
 
-        ## 🔑 Concepts Fondamentaux (Le cœur du cours)
-        *Liste les 3 à 5 grands points à comprendre absolument.*
-        - **[Concept 1]** : Explication claire et concise.
-        - **[Concept 2]** : Explication claire et concise.
-        *(Utilise des sous-points si nécessaire)*
+            ## 👥 Analyse des Personnages (ou Figures)
+            *Décortique la psychologie et la fonction symbolique des protagonistes.*
+            - **[Personnage A]** : Analyse détaillée.
+            - **[Personnage B]** : Analyse détaillée.
 
-        ## 📖 Vocabulaire & Définitions
-        *Les termes techniques précis.*
-        - **[Terme A]** : Définition.
-        - **[Terme B]** : Définition.
+            ## 🗝️ Thèmes Principaux & Enjeux
+            *Quels sont les messages profonds ? (ex: La fatalité, la condition sociale, l'absurde...)*
+            - **[Thème 1]** : Explication poussée avec exemples.
+            - **[Thème 2]** : Explication poussée avec exemples.
 
-        ## 🧠 À retenir par cœur (Dates / Formules / Chiffres)
-        > [Formule mathématique, Date historique ou Théorème clé]
-        > [Autre élément incontournable]
+            ## 🎨 Analyse Stylistique & Esthétique
+            *Quels procédés l'auteur utilise-t-il ? (Champs lexicaux, types de focalisation, figures de style récurrentes).*
 
-        ## 💡 Exemple Concret / Application
-        *Un exemple simple pour illustrer la théorie (ex: "Imaginez que...").*
+            ## 💬 Citation Clé Analysée
+            > "Une citation célèbre ou représentative de l'œuvre."
+            *Analyse brièvement cette citation (pourquoi est-elle emblématique ?).*
 
-        ## ⚠️ Les Pièges de l'examen
-        - [Erreur classique à ne pas faire]
-        - [Confusion fréquente à éviter]
-        `;
+            ## 🌟 Portée & Modernité
+            *Pourquoi lit-on encore ce livre aujourd'hui ? Quelle est sa résonance actuelle ?*
 
-        // 2. Prompt pour les LIVRES (Nouveau)
-        const promptLivre = `
-        Tu es un critique littéraire et bibliothécaire expert.
-        Ton objectif est de créer une **Fiche de Lecture Complète** pour le livre fourni ("${title}").
+            Format de sortie JSON attendu : { "summary": "Le contenu en markdown ici..." }
+            `;
 
-        CONSIGNES DE RÉDACTION :
-        1. Adopte un ton analytique mais accessible.
-        2. Utilise des émojis pour structurer la lecture.
-        3. Fais ressortir l'essentiel pour quelqu'un qui veut comprendre l'œuvre sans la lire.
-        4. Utilise strictement le format Markdown ci-dessous.
+            // On envoie seulement le texte, pas d'inline_data
+            contentsPayload = [{ parts: [{ text: promptLivreExpert }] }];
 
-        STRUCTURE ATTENDUE (Markdown) :
+        } 
+        // --- CAS 2 : C'EST UN COURS (On lit le PDF) ---
+        else {
+            console.log("   👉 Mode COURS activé : Téléchargement et analyse du PDF.");
+            
+            const response = await axios.get(downloadURL, { responseType: 'arraybuffer' });
+            const base64Data = Buffer.from(response.data).toString('base64');
 
-        # 📚 Fiche de Lecture : ${title}
+            const promptCours = `
+            Tu es un expert en synthèse pédagogique et "Sketchnoting". 
+            Ton objectif est de créer la fiche de révision PARFAITE pour un étudiant, basée sur le document fourni ("${title}").
 
-        ## 📝 Informations Clés
-        - **Auteur** : (Déduis-le du document si possible)
-        - **Genre** : (Roman, Essai, Théâtre, etc.)
-        - **Thème central** : En une phrase.
+            CONSIGNES DE RÉDACTION :
+            1. **Synthèse intelligente** : Ne recopie pas le texte, reformule pour clarifier.
+            2. **Visuel** : Utilise des émojis pertinents pour chaque section.
+            3. **Mise en valeur** : Mets en **gras** les mots-clés importants.
+            4. **Structure** : Utilise strictement le format Markdown ci-dessous.
 
-        ## 📖 Résumé Global (Le Pitch)
-        *Un paragraphe résumant l'intrigue générale ou l'argument principal du livre.*
+            STRUCTURE ATTENDUE (Markdown) :
 
-        ## 🔍 Résumé Détaillé (Les moments clés)
-        *Les points de bascule de l'histoire ou les chapitres clés.*
-        - **Situation Initiale** : ...
-        - **Élément Perturbateur** : ...
-        - **Péripéties / Développement** : ...
-        - **Dénouement / Conclusion** : ...
+            # 📑 Fiche : ${title}
 
-        ## 👥 Personnages Principaux (ou Concepts clés si essai)
-        - **[Nom]** : Son rôle, sa psychologie, son évolution.
-        - **[Nom]** : Son rôle, sa psychologie, son évolution.
+            ## 🎯 Objectif & Contexte
+            *En 2 phrases : De quoi parle ce cours et pourquoi c'est important ?*
 
-        ## 🗝️ Thèmes & Analyse
-        *Quels sont les messages cachés ou les sujets profonds abordés ?*
-        - **[Thème 1]** : Analyse.
-        - **[Thème 2]** : Analyse.
+            ## 🔑 Concepts Fondamentaux (Le cœur du cours)
+            *Liste les 3 à 5 grands points à comprendre absolument.*
+            - **[Concept 1]** : Explication claire et concise.
+            - **[Concept 2]** : Explication claire et concise.
+            *(Utilise des sous-points si nécessaire)*
 
-        ## 💬 Citation Marquante
-        > "Une citation extraite du texte qui capture l'essence du livre."
+            ## 📖 Vocabulaire & Définitions
+            *Les termes techniques précis.*
+            - **[Terme A]** : Définition.
+            - **[Terme B]** : Définition.
 
-        ## 🌟 Avis Critique & Portée
-        *Pourquoi ce livre est-il important ? Que faut-il en retenir pour la culture générale ?*
-        `;
+            ## 🧠 À retenir par cœur (Dates / Formules / Chiffres)
+            > [Formule mathématique, Date historique ou Théorème clé]
+            > [Autre élément incontournable]
 
-        // SÉLECTION DU PROMPT SELON LE TYPE
-        const promptText = (docType === 'livre') ? promptLivre : promptCours;
-        const finalPrompt = `${promptText}\nFormat de sortie JSON : { "summary": "Le contenu en markdown ici..." }`;
+            ## 💡 Exemple Concret / Application
+            *Un exemple simple pour illustrer la théorie (ex: "Imaginez que...").*
 
+            ## ⚠️ Les Pièges de l'examen
+            - [Erreur classique à ne pas faire]
+            - [Confusion fréquente à éviter]
+
+            Format de sortie JSON attendu : { "summary": "Le contenu en markdown ici..." }
+            `;
+
+            contentsPayload = [{ parts: [{ text: promptCours }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }];
+        }
+
+        // Appel à l'API Gemini
         const aiResponse = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
             { 
-                contents: [{ parts: [{ text: finalPrompt }, { inline_data: { mime_type: "application/pdf", data: base64Data } }] }],
+                contents: contentsPayload,
                 generationConfig: { response_mime_type: "application/json" } 
             },
             { headers: { 'Content-Type': 'application/json' } }
